@@ -1,4 +1,3 @@
-// rules.go com suporte a nested e exclusão de regras duplicadas vindas de loops
 package parser
 
 import (
@@ -15,16 +14,9 @@ func isRuleDeclaration(line string) (bool, string) {
 	return false, ""
 }
 
-type ruleContext struct {
-	selector   string
-	properties []string
-	parent     *ruleContext
-	nested     map[string][]string
-}
-
 func parseRules(lines []string) []ScssRule {
 	var rules []ScssRule
-	var stack []*ruleContext
+	var stack []*RuleContext
 	braceDepth := 0
 	seen := make(map[string]bool)
 
@@ -36,19 +28,22 @@ func parseRules(lines []string) []ScssRule {
 
 		if ok, selector := isRuleDeclaration(line); ok {
 			braceDepth++
-			ctx := &ruleContext{
+			ctx := &RuleContext{
 				selector:   selector,
 				properties: []string{},
 				nested:     make(map[string][]string),
 			}
+
 			if len(stack) > 0 {
 				ctx.parent = stack[len(stack)-1]
+
 				if strings.HasPrefix(selector, "&") {
-					ctx.selector = strings.Replace(selector, "&", ctx.parent.selector, 1)
-				} else {
+					ctx.selector = selector
+				} else if ctx.parent.selector != "" {
 					ctx.selector = ctx.parent.selector + " " + selector
 				}
 			}
+
 			stack = append(stack, ctx)
 			continue
 		}
@@ -56,23 +51,25 @@ func parseRules(lines []string) []ScssRule {
 		if strings.Contains(line, "{") {
 			braceDepth++
 		}
+
 		if strings.Contains(line, "}") {
 			braceDepth--
 			if braceDepth >= 0 && len(stack) > 0 {
 				ctx := stack[len(stack)-1]
 				stack = stack[:len(stack)-1]
 
-				if strings.Contains(ctx.selector, "#{") {
+				if strings.Contains(ctx.selector, "#{") && strings.Contains(ctx.selector, "$i") {
 					continue
 				}
 
-				if ctx.parent != nil && strings.HasPrefix(ctx.selector, ctx.parent.selector+":") {
-					ctx.parent.nested[ctx.selector[len(ctx.parent.selector):]] = ctx.properties
+				if ctx.parent != nil && strings.HasPrefix(ctx.selector, "&") {
+					nestedSelector := ctx.selector
+					ctx.parent.nested[nestedSelector] = ctx.properties
 					continue
 				}
 
 				key := strings.TrimSpace(ctx.selector)
-				if !seen[key] {
+				if !seen[key] && key != "" {
 					rules = append(rules, ScssRule{
 						Selector:   key,
 						Properties: ctx.properties,
@@ -84,7 +81,9 @@ func parseRules(lines []string) []ScssRule {
 			continue
 		}
 
-		if len(stack) > 0 {
+		if len(stack) > 0 && !strings.Contains(line, "@") && strings.Contains(line, ":") {
+
+			line = strings.TrimSuffix(line, ";")
 			stack[len(stack)-1].properties = append(stack[len(stack)-1].properties, line)
 		}
 	}

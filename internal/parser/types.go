@@ -39,6 +39,13 @@ type ScssRule struct {
 	Nested     map[string][]string `json:"nested,omitempty"`
 }
 
+type RuleContext struct {
+	selector   string
+	properties []string
+	parent     *RuleContext
+	nested     map[string][]string
+}
+
 type ScssLoop struct {
 	Type       string     `json:"type"`
 	Expression string     `json:"expression"`

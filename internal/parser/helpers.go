@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"bytes"
+	"encoding/json"
 	"regexp"
 	"strings"
 )
@@ -20,4 +22,16 @@ func extractUnit(value string) string {
 		return matches[1]
 	}
 	return ""
+}
+
+func ToUnescapedJSON(v interface{}) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	encoder := json.NewEncoder(buf)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(v)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }

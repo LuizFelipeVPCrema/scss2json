@@ -9,23 +9,23 @@ import (
 )
 
 func main() {
-	input := flag.String("i", "", "Arquivo SCSS de entrada")
-	output := flag.String("o", "output.json", "Arquivo de saída JSON")
+	input := flag.String("i", "", "Input SCSS file")
+	output := flag.String("o", "output.json", "JSON output file")
 	flag.Parse()
 
 	if *input == "" {
-		log.Fatal("Você deve fornecer um arquivo de entrada com -i")
+		log.Fatal("You must provide an input file with -i")
 	}
 
 	result, err := scss2json.ParseFile(*input)
 	if err != nil {
-		log.Fatalf("Erro ao parsear: %v", err)
+		log.Fatalf("Error parsing: %v", err)
 	}
 
 	err = scss2json.ExportToJson(result, *output)
 	if err != nil {
-		log.Fatalf("Erro ao exportar: %v", err)
+		log.Fatalf("Error when exporting: %v", err)
 	}
 
-	fmt.Println("Exportado com sucesso para", *output)
+	fmt.Println("Successfully exported to", *output)
 }

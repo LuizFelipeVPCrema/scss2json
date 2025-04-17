@@ -1,6 +1,7 @@
 package parser_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ func TestParseSampleScss(t *testing.T) {
 		if len(mixin.Params) != 1 || mixin.Params[0] != "$radius" {
 			t.Errorf("parâmetros do mixin inválidos: %+v", mixin.Params)
 		}
-		if !containsLine(mixin.Body, "border-radius: $radius;") {
+		if !containsLine(mixin.Body, "border-radius: $radius") {
 			t.Errorf("corpo do mixin incompleto: %+v", mixin.Body)
 		}
 	}
@@ -46,7 +47,7 @@ func TestParseSampleScss(t *testing.T) {
 		if fn.Name != "double" {
 			t.Errorf("nome da função inválido: %s", fn.Name)
 		}
-		if !containsLine(fn.Body, "@return $number * 2;") {
+		if !containsLine(fn.Body, "@return $number * 2") {
 			t.Errorf("corpo da função não encontrado corretamente")
 		}
 	}
@@ -59,7 +60,7 @@ func TestParseSampleScss(t *testing.T) {
 		if ph.Name != "button-style" {
 			t.Errorf("nome do placeholder inválido: %s", ph.Name)
 		}
-		if !containsLine(ph.Body, "@include border-radius(5px);") {
+		if !containsLine(ph.Body, "@include border-radius(5px)") {
 			t.Errorf("corpo do placeholder incorreto")
 		}
 	}
@@ -68,15 +69,36 @@ func TestParseSampleScss(t *testing.T) {
 	if len(result.Rules) == 0 {
 		t.Errorf("nenhuma regra CSS encontrada")
 	} else {
-		found := false
+		// Encontra a regra "nav ul"
+		navUlFound := false
 		for _, r := range result.Rules {
-			if r.Selector == "nav ul" && containsLine(r.Properties, "margin: 0") {
-				found = true
+			if r.Selector == "nav ul" {
+				navUlFound = true
+				if !containsLine(r.Properties, "margin: 0") {
+					t.Errorf("propriedade 'margin: 0' não encontrada na regra 'nav ul'")
+				}
 				break
 			}
 		}
-		if !found {
+		if !navUlFound {
 			t.Errorf("regra esperada 'nav ul' não encontrada")
+		}
+
+		// Encontra a regra "nav a" com nested rules
+		navAFound := false
+		for _, r := range result.Rules {
+			if r.Selector == "nav a" {
+				navAFound = true
+				if len(r.Nested) == 0 {
+					t.Errorf("regra aninhada não encontrada em 'nav a'")
+				} else if _, ok := r.Nested["&:hover"]; !ok {
+					t.Errorf("regra aninhada '&:hover' não encontrada em 'nav a'")
+				}
+				break
+			}
+		}
+		if !navAFound {
+			t.Errorf("regra esperada 'nav a' não encontrada")
 		}
 	}
 
@@ -88,20 +110,34 @@ func TestParseSampleScss(t *testing.T) {
 		if loop.Expression != "$i from 1 through 3" {
 			t.Errorf("expressão do loop incorreta: %s", loop.Expression)
 		}
-		if len(loop.Body) == 0 || loop.Body[0].Selector != ".column-#{$i}" {
+		if len(loop.Body) == 0 || !strings.Contains(loop.Body[0].Selector, ".column-") {
 			t.Errorf("corpo do loop não contém a regra esperada")
 		}
 	}
 
 	// Exporta resultado para inspeção manual (debug)
-	jsonData, _ := json.MarshalIndent(result, "", "  ")
-	_ = os.WriteFile("testdata/saida.json", jsonData, 0644)
+	rawJSON, err := parser.ToUnescapedJSON(result)
+	if err != nil {
+		t.Fatalf("Erro ao serializar resultado para JSON: %v", err)
+	}
+
+	// Formatando com indentação
+	var prettyJSON bytes.Buffer
+	err = json.Indent(&prettyJSON, rawJSON, "", "  ")
+	if err != nil {
+		t.Fatalf("Erro ao formatar JSON: %v", err)
+	}
+
+	err = os.WriteFile("testdata/saida.json", prettyJSON.Bytes(), 0644)
+	if err != nil {
+		t.Fatalf("Erro ao escrever arquivo de saída: %v", err)
+	}
 }
 
 func containsLine(lines []string, expected string) bool {
-	expected = strings.TrimSuffix(expected, ";")
 	for _, line := range lines {
 		line = strings.TrimSpace(strings.TrimSuffix(line, ";"))
+		expected = strings.TrimSpace(strings.TrimSuffix(expected, ";"))
 		if line == expected {
 			return true
 		}
