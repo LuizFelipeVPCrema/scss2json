@@ -66,5 +66,64 @@
       ],
       "raw": "%button-style {\n  display: inline-block;\n  padding: $padding;\n  background-color: $primary-color;\n  color: white;\n  @include border-radius(5px);\n}"
     }
+  ],
+  "rules": [
+    {
+      "selector": "nav ul",
+      "properties": [
+        "margin: 0;",
+        "padding: 0;",
+        "list-style: none;"
+      ]
+    },
+    {
+      "selector": "nav li",
+      "properties": [
+        "display: inline-block;"
+      ]
+    },
+    {
+      "selector": "nav a",
+      "properties": [
+        "text-decoration: none;",
+        "color: $primary-color;"
+      ],
+      "nested": {
+        ":hover": [
+          "color: darken($primary-color, 10%);"
+        ]
+      }
+    },
+    {
+      "selector": "nav",
+      "properties": []
+    },
+    {
+      "selector": ".column-#",
+      "properties": [
+        "width: 100% / $i;"
+      ]
+    },
+    {
+      "selector": ".box",
+      "properties": [
+        "width: double(10px);"
+      ]
+    }
+  ],
+  "loops": [
+    {
+      "type": "for",
+      "expression": "$i from 1 through 3",
+      "body": [
+        {
+          "selector": ".column-#",
+          "properties": [
+            "width: 100% / $i;"
+          ]
+        }
+      ],
+      "raw": "@for $i from 1 through 3 {\n    .column-#{$i} {\n        width: 100% / $i;\n    }\n}"
+    }
   ]
 }

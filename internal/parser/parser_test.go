@@ -64,14 +64,45 @@ func TestParseSampleScss(t *testing.T) {
 		}
 	}
 
+	// Verifica rules
+	if len(result.Rules) == 0 {
+		t.Errorf("nenhuma regra CSS encontrada")
+	} else {
+		found := false
+		for _, r := range result.Rules {
+			if r.Selector == "nav ul" && containsLine(r.Properties, "margin: 0") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("regra esperada 'nav ul' não encontrada")
+		}
+	}
+
+	// Verifica loops
+	if len(result.Loops) == 0 {
+		t.Errorf("nenhum loop for encontrado")
+	} else {
+		loop := result.Loops[0]
+		if loop.Expression != "$i from 1 through 3" {
+			t.Errorf("expressão do loop incorreta: %s", loop.Expression)
+		}
+		if len(loop.Body) == 0 || loop.Body[0].Selector != ".column-#{$i}" {
+			t.Errorf("corpo do loop não contém a regra esperada")
+		}
+	}
+
 	// Exporta resultado para inspeção manual (debug)
 	jsonData, _ := json.MarshalIndent(result, "", "  ")
 	_ = os.WriteFile("testdata/saida.json", jsonData, 0644)
 }
 
 func containsLine(lines []string, expected string) bool {
+	expected = strings.TrimSuffix(expected, ";")
 	for _, line := range lines {
-		if strings.TrimSpace(line) == expected {
+		line = strings.TrimSpace(strings.TrimSuffix(line, ";"))
+		if line == expected {
 			return true
 		}
 	}
@@ -113,36 +144,5 @@ func TestInvalidSyntaxIgnored(t *testing.T) {
 	}
 	if len(result.Functions) != 1 {
 		t.Errorf("Esperado 1 função válida, obtido %d", len(result.Functions))
-	}
-}
-
-func TestParseLoopPreservation(t *testing.T) {
-	path := filepath.Join("testdata", "loop.scss")
-	content := `
-        @for $i from 1 through 3 {
-            .column-#{$i} {
-                width: 100% / $i;
-            }
-        }
-    `
-	_ = os.WriteFile(path, []byte(content), 0644)
-	defer os.Remove(path)
-
-	result, err := parser.ParseScssFile(path)
-	if err != nil {
-		t.Fatalf("Erro ao parsear loop: %v", err)
-	}
-
-	raw := ""
-	if len(result.Functions) > 0 {
-		raw = result.Functions[0].Raw
-	}
-
-	jsonBytes, _ := json.MarshalIndent(result, "", "  ")
-	_ = os.WriteFile("testdata/loop_output.json", jsonBytes, 0644)
-
-	// Esse teste garante apenas que o loop é ignorado e não quebra nada.
-	if result == nil || raw == "" {
-		t.Log("Loop foi ignorado (como esperado por enquanto).")
 	}
 }

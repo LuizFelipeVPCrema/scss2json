@@ -26,9 +26,12 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 	var captureName string
 	var captureParams []string
 	var blockDepth int
+	var allLines []string
 
 	for scanner.Scan() {
 		line := scanner.Text()
+		allLines = append(allLines, line)
+
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
@@ -145,6 +148,9 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 			continue
 		}
 	}
+
+	result.Rules = parseRules(allLines)
+	result.Loops = parseLoops(allLines)
 
 	return result, scanner.Err()
 }

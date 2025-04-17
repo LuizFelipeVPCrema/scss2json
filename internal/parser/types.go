@@ -33,9 +33,24 @@ type ScssPlaceholder struct {
 	Raw  string   `json:"raw"`
 }
 
+type ScssRule struct {
+	Selector   string              `json:"selector"`
+	Properties []string            `json:"properties"`
+	Nested     map[string][]string `json:"nested,omitempty"`
+}
+
+type ScssLoop struct {
+	Type       string     `json:"type"`
+	Expression string     `json:"expression"`
+	Body       []ScssRule `json:"body"`
+	Raw        string     `json:"raw"`
+}
+
 type ScssJsonExport struct {
 	Variables    []ScssVariable    `json:"variables"`
 	Mixins       []ScssMixin       `json:"mixins"`
 	Functions    []ScssFunction    `json:"functions"`
 	Placeholders []ScssPlaceholder `json:"placeholders"`
+	Rules        []ScssRule        `json:"rules"`
+	Loops        []ScssLoop        `json:"loops"`
 }
