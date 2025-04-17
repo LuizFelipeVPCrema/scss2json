@@ -1,0 +1,47 @@
+$primary-color: #3498db;
+$padding: 10px;
+$font-stack: Helvetica, sans-serif;
+ 
+@mixin border-radius($radius) {
+    -webkit-border-radius: $radius;
+    -moz-border-radius: $radius;
+    border-radius: $radius;
+}
+@function double($number) {
+    @return $number * 2;  
+}
+ 
+%button-style {
+  display: inline-block;
+  padding: $padding;
+  background-color: $primary-color;
+  color: white;
+  @include border-radius(5px);
+}
+
+nav {
+    ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+    li {
+        display: inline-block;
+    }
+    a {
+        text-decoration: none;
+        color: $primary-color;
+    &:hover {
+        color: darken($primary-color, 10%);
+        }
+    }
+}
+
+@for $i from 1 through 3 {
+    .column-#{$i} {
+        width: 100% / $i;
+    }
+}
+.box {
+    width: double(10px);
+}
