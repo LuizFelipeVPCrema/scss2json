@@ -1,0 +1,109 @@
+{
+    "variables": [
+        {
+            "type": "variable",
+            "name": "primary-color",
+            "value": "#3498db",
+            "unit": null,
+            "raw": "$primary-color: #3498db"
+        },
+        {
+            "type": "variable",
+            "name": "padding",
+            "value": "10px",
+            "unit": "px",
+            "raw": "$padding: 10px"
+        },
+        {
+            "type": "variable",
+            "name": "font-stack",
+            "value": "Helvetica, sans-serif",
+            "unit": null,
+            "raw": "$font-stack: Helvetica, sans-serif"
+        }
+        ],
+        "mixins": [
+        {
+            "type": "mixin",
+            "name": "border-radius",
+            "params": ["$radius"],
+            "body": [
+            "-webkit-border-radius: $radius",
+            "-moz-border-radius: $radius",
+            "border-radius: $radius"
+            ],
+            "raw": "=border-radius($radius)\n  -webkit-border-radius: $radius\n  -moz-border-radius: $radius\n  border-radius: $radius"
+        }
+        ],
+        "functions": [
+        {
+            "type": "function",
+            "name": "double",
+            "params": ["$number"],
+            "body": ["@return $number * 2"],
+            "raw": "@function double($number)\n  @return $number * 2"
+        }
+        ],
+        "placeholders": [
+        {
+            "type": "placeholder",
+            "name": "button-style",
+            "body": [
+            "display: inline-block",
+            "padding: $padding",
+            "background-color: $primary-color",
+            "color: white",
+            "@include border-radius(5px)"
+            ],
+            "raw": "%button-style\n  display: inline-block\n  padding: $padding\n  background-color: $primary-color\n  color: white\n  @include border-radius(5px)"
+        }
+        ],
+        "rules": [
+        {
+            "selector": "nav ul",
+            "properties": [
+            "margin: 0",
+            "padding: 0",
+            "list-style: none"
+            ]
+        },
+        {
+            "selector": "nav li",
+            "properties": [
+            "display: inline-block"
+            ]
+        },
+        {
+            "selector": "nav a",
+            "properties": [
+            "text-decoration: none",
+            "color: $primary-color"
+            ],
+            "nested": {
+            "&:hover": ["color: darken($primary-color, 10%)"]
+            }
+        },
+        {
+            "selector": ".box",
+            "properties": [
+            "width: double(10px)"
+            ]
+        }
+        ],
+        "loops": [
+        {
+            "type": "for",
+            "expression": "$i from 1 through 3",
+            "body": [
+            {
+                "selector": ".column-#{$i}",
+                "properties": [
+                "width: 100% / $i"
+                ]
+            }
+            ],
+            "raw": "@for $i from 1 through 3\n  .column-#{$i}\n    width: 100% / $i"
+        }
+        ]
+}
+  

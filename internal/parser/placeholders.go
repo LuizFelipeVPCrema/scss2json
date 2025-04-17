@@ -2,7 +2,7 @@ package parser
 
 import "regexp"
 
-var rePlaceholder = regexp.MustCompile(`^\s*%([a-zA-Z0-9_-]+)\s*$`)
+var rePlaceholder = regexp.MustCompile(`^\s*%([a-zA-Z0-9_-]+)\s*\{?`)
 
 func isPlaceholderDeclaration(line string) (bool, string) {
 	if matches := rePlaceholder.FindStringSubmatch(line); len(matches) > 0 {

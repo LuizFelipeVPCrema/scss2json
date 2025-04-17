@@ -2,7 +2,7 @@ package parser
 
 import "regexp"
 
-var reMixin = regexp.MustCompile(`^\s*=([a-zA-Z0-9_-]+)\((.*?)\)`)
+var reMixin = regexp.MustCompile(`^\s*@mixin\s+([a-zA-Z0-9_-]+)\((.*?)\)\s*\{?`)
 
 func isMixinDeclaration(line string) (bool, string, []string) {
 	if matches := reMixin.FindStringSubmatch(line); len(matches) > 0 {

@@ -25,6 +25,7 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 	var captureMode string
 	var captureName string
 	var captureParams []string
+	var blockDepth int
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -33,17 +34,25 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 			continue
 		}
 
+		// Comentário para categoria
 		if matches := reCommentCategory.FindStringSubmatch(line); len(matches) > 0 {
 			currentCategory = matches[1]
 			continue
 		}
 
+		// Captura de bloco ativo (mixins, functions, placeholders)
 		if captureMode != "" {
-			if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
-				currentBody = append(currentBody, strings.TrimSpace(line))
-				currentRaw = append(currentRaw, line)
-				continue
-			} else {
+			currentRaw = append(currentRaw, line)
+
+			blockDepth += strings.Count(line, "{")
+			blockDepth -= strings.Count(line, "}")
+
+			bodyLine := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(line, "{", ""), "}", ""))
+			if bodyLine != "" {
+				currentBody = append(currentBody, bodyLine)
+			}
+
+			if blockDepth <= 0 {
 				switch captureMode {
 				case "mixin":
 					result.Mixins = append(result.Mixins, ScssMixin{
@@ -69,15 +78,18 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 						Raw:  strings.Join(currentRaw, "\n"),
 					})
 				}
+				// Reset
 				captureMode = ""
 				captureName = ""
 				captureParams = nil
 				currentRaw = nil
 				currentBody = nil
+				blockDepth = 0
 			}
+			continue
 		}
 
-		// Variables
+		// Variável
 		if ok, name, value, modifier := isVariableDeclaration(line); ok {
 			result.Variables = append(result.Variables, ScssVariable{
 				Type:      "variable",
@@ -98,16 +110,28 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 			captureParams = params
 			currentRaw = []string{line}
 			currentBody = nil
+			blockDepth = 1
 			continue
 		}
 
 		// Function
-		if ok, name, params := isFunctionDeclaration(line); ok {
+		if ok, name, params, inlineBody, raw := isFunctionDeclaration(line); ok {
+			if inlineBody != nil {
+				result.Functions = append(result.Functions, ScssFunction{
+					Type:   "function",
+					Name:   name,
+					Params: params,
+					Body:   inlineBody,
+					Raw:    raw,
+				})
+				continue
+			}
 			captureMode = "function"
 			captureName = name
 			captureParams = params
 			currentRaw = []string{line}
 			currentBody = nil
+			blockDepth = 1
 			continue
 		}
 
@@ -117,6 +141,7 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 			captureName = name
 			currentRaw = []string{line}
 			currentBody = nil
+			blockDepth = 1
 			continue
 		}
 	}
