@@ -155,6 +155,97 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 	return result, scanner.Err()
 }
 
+func ParseScssContent(content string) (*ScssJsonExport, error) {
+	result := &ScssJsonExport{}
+	scanner := bufio.NewScanner(strings.NewReader(content))
+
+	var currentCategory string
+	var currentRaw []string
+	var currentBody []string
+	var captureMode string
+	var captureName string
+	var captureParams []string
+	var blockDepth int
+	var allLines []string
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		allLines = append(allLines, line)
+
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		if matches := reCommentCategory.FindStringSubmatch(line); len(matches) > 0 {
+			currentCategory = matches[1]
+			continue
+		}
+
+		if captureMode != "" {
+			currentRaw = append(currentRaw, line)
+			blockDepth += strings.Count(line, "{")
+			blockDepth -= strings.Count(line, "}")
+
+			bodyLine := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(line, "{", ""), "}", ""))
+			if bodyLine != "" {
+				currentBody = append(currentBody, bodyLine)
+			}
+
+			if blockDepth <= 0 {
+				switch captureMode {
+				case "mixin":
+					result.Mixins = append(result.Mixins, ScssMixin{Type: "mixin", Name: captureName, Params: captureParams, Body: currentBody, Raw: strings.Join(currentRaw, "\n")})
+				case "function":
+					result.Functions = append(result.Functions, ScssFunction{Type: "function", Name: captureName, Params: captureParams, Body: currentBody, Raw: strings.Join(currentRaw, "\n")})
+				case "placeholder":
+					result.Placeholders = append(result.Placeholders, ScssPlaceholder{Type: "placeholder", Name: captureName, Body: currentBody, Raw: strings.Join(currentRaw, "\n")})
+				}
+				captureMode, captureName, captureParams = "", "", nil
+				currentRaw, currentBody = nil, nil
+				blockDepth = 0
+			}
+			continue
+		}
+
+		if ok, name, value, modifier := isVariableDeclaration(line); ok {
+			result.Variables = append(result.Variables, ScssVariable{
+				Type: "variable", Name: name, Value: value, Unit: extractUnit(value), Raw: line, Modifiers: optionalModifier(modifier), Category: currentCategory,
+			})
+			continue
+		}
+
+		if ok, name, params := isMixinDeclaration(line); ok {
+			captureMode, captureName, captureParams = "mixin", name, params
+			currentRaw = []string{line}
+			blockDepth = 1
+			continue
+		}
+
+		if ok, name, params, inlineBody, raw := isFunctionDeclaration(line); ok {
+			if inlineBody != nil {
+				result.Functions = append(result.Functions, ScssFunction{Type: "function", Name: name, Params: params, Body: inlineBody, Raw: raw})
+				continue
+			}
+			captureMode, captureName, captureParams = "function", name, params
+			currentRaw = []string{line}
+			blockDepth = 1
+			continue
+		}
+
+		if ok, name := isPlaceholderDeclaration(line); ok {
+			captureMode, captureName = "placeholder", name
+			currentRaw = []string{line}
+			blockDepth = 1
+			continue
+		}
+	}
+
+	result.Rules = parseRules(allLines)
+	result.Loops = parseLoops(allLines)
+	return result, scanner.Err()
+}
+
 func optionalModifier(input string) []string {
 	if input == "" {
 		return nil

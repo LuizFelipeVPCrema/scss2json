@@ -182,3 +182,68 @@ func TestInvalidSyntaxIgnored(t *testing.T) {
 		t.Errorf("Esperado 1 função válida, obtido %d", len(result.Functions))
 	}
 }
+
+func TestParseScssContent(t *testing.T) {
+	scss := `
+$primary-color: #3498db;
+$padding: 10px;
+
+@mixin border-radius($radius) {
+  border-radius: $radius;
+}
+
+@function double($n) {
+  @return $n * 2;
+}
+
+%box-style {
+  padding: $padding;
+}
+
+nav {
+  ul {
+    margin: 0;
+  }
+}
+`
+
+	result, err := parser.ParseScssContent(scss)
+	if err != nil {
+		t.Fatalf("Erro ao parsear SCSS de string: %v", err)
+	}
+
+	// Verifica variáveis
+	if len(result.Variables) != 2 {
+		t.Errorf("esperado 2 variáveis, obtido %d", len(result.Variables))
+	}
+
+	// Verifica mixins
+	if len(result.Mixins) != 1 || result.Mixins[0].Name != "border-radius" {
+		t.Errorf("esperado 1 mixin 'border-radius', obtido %+v", result.Mixins)
+	}
+
+	// Verifica função
+	if len(result.Functions) != 1 || result.Functions[0].Name != "double" {
+		t.Errorf("esperado 1 função 'double', obtido %+v", result.Functions)
+	}
+
+	// Verifica placeholder
+	if len(result.Placeholders) != 1 || result.Placeholders[0].Name != "box-style" {
+		t.Errorf("esperado 1 placeholder 'box-style', obtido %+v", result.Placeholders)
+	}
+
+	// Verifica regra CSS nav ul
+	found := false
+	for _, rule := range result.Rules {
+		if strings.TrimSpace(rule.Selector) == "nav ul" {
+			found = true
+			if len(rule.Properties) == 0 || rule.Properties[0] != "margin: 0" {
+				t.Errorf("nav ul encontrado, mas propriedades incorretas: %+v", rule.Properties)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("regra 'nav ul' não encontrada")
+	}
+}
