@@ -16,6 +16,10 @@ func parseRules(lines []string) []ScssRule {
 			continue
 		}
 
+		if strings.HasPrefix(line, "@media") || strings.HasPrefix(line, "@supports") || strings.HasPrefix(line, "@layer") || strings.HasPrefix(line, "@container") {
+			continue
+		}
+
 		// Início de um seletor (bloco)
 		if strings.HasSuffix(line, "{") {
 			braceDepth++

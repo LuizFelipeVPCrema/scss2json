@@ -136,6 +136,7 @@
       ]
     }
   ],
+  "mediaQueries": null,
   "loops": [
     {
       "type": "for",

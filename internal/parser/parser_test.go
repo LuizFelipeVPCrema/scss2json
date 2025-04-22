@@ -343,3 +343,29 @@ $theme: dark;
 		t.Errorf("propriedades incorretas: %v", rule.Properties)
 	}
 }
+
+func TestParseMediaQuery(t *testing.T) {
+	scss := `
+@media screen and (max-width: 600px) {
+  .box {
+    display: block;
+  }
+}
+`
+	result, err := parser.ParseScssContent(scss)
+	if err != nil {
+		t.Fatalf("Erro ao parsear @media: %v", err)
+	}
+
+	if len(result.MediaQueries) != 1 {
+		t.Fatalf("Esperado 1 @media, obtido %d", len(result.MediaQueries))
+	}
+
+	mq := result.MediaQueries[0]
+	if mq.Type != "media" || !strings.Contains(mq.Condition, "max-width") {
+		t.Errorf("Condição do @media inválida: %+v", mq)
+	}
+	if len(mq.Rules) == 0 || mq.Rules[0].Selector != ".box" {
+		t.Errorf("Regra dentro de @media incorreta: %+v", mq.Rules)
+	}
+}

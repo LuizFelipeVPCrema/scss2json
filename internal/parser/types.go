@@ -53,18 +53,27 @@ type ScssLoop struct {
 	Raw        string     `json:"raw"`
 }
 
+type ScssComment struct {
+	Type    string `json:"type"`
+	Content string `json:"content"`
+	Line    int    `json:"line"`
+}
+
+type ScssMediaBlock struct {
+	Type       string     `json:"type"`
+	Condition  string     `json:"condition"`
+	Properties []string   `json:"properties"`
+	Rules      []ScssRule `json:"rules,omitempty"`
+	Raw        string     `json:"raw"`
+}
+
 type ScssJsonExport struct {
 	Variables    []ScssVariable    `json:"variables"`
 	Mixins       []ScssMixin       `json:"mixins"`
 	Functions    []ScssFunction    `json:"functions"`
 	Placeholders []ScssPlaceholder `json:"placeholders"`
 	Rules        []ScssRule        `json:"rules"`
+	MediaQueries []ScssMediaBlock  `json:"mediaQueries"`
 	Loops        []ScssLoop        `json:"loops"`
 	Comments     []ScssComment     `json:"comments"`
-}
-
-type ScssComment struct {
-	Type    string `json:"type"`
-	Content string `json:"content"`
-	Line    int    `json:"line"`
 }

@@ -155,7 +155,9 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 		}
 	}
 
-	result.Rules = parseRules(allLines)
+	cleanLines := FilterOutMediaBlocks(allLines)
+	result.Rules = parseRules(cleanLines)
+	result.MediaQueries = parseMediaBlocks(allLines)
 	result.Loops = parseLoops(allLines)
 	result.Comments = append(result.Comments, commentTracker.Comments()...)
 
@@ -254,7 +256,9 @@ func ParseScssContent(content string) (*ScssJsonExport, error) {
 		}
 	}
 
-	result.Rules = parseRules(allLines)
+	cleanLines := FilterOutMediaBlocks(allLines)
+	result.Rules = parseRules(cleanLines)
+	result.MediaQueries = parseMediaBlocks(allLines)
 	result.Loops = parseLoops(allLines)
 	result.Comments = append(result.Comments, commentTracker.Comments()...)
 
