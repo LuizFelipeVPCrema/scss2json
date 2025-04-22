@@ -247,3 +247,99 @@ nav {
 		t.Error("regra 'nav ul' não encontrada")
 	}
 }
+
+func TestParseScssContent_WithMultilineComments(t *testing.T) {
+	scss := `/* Comentário global */
+$color: red;
+
+/* Comentário
+   em várias
+   linhas */
+@mixin exemplo() {
+  color: $color;
+}`
+
+	result, err := parser.ParseScssContent(scss)
+	if err != nil {
+		t.Fatalf("erro ao fazer parse: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("resultado retornado é nil")
+	}
+
+	if len(result.Comments) != 2 {
+		t.Fatalf("esperado 2 comentários, obtido %d", len(result.Comments))
+	}
+
+	expectedFirst := "/* Comentário global */"
+	if !strings.Contains(result.Comments[0].Content, expectedFirst) {
+		t.Errorf("esperado que o primeiro comentário contenha %q, obtido: %q", expectedFirst, result.Comments[0].Content)
+	}
+
+	expectedSecond := "/* Comentário\n   em várias\n   linhas */"
+	if !strings.Contains(result.Comments[1].Content, "Comentário") || !strings.Contains(result.Comments[1].Content, "várias") {
+		t.Errorf("segundo comentário não contém conteúdo esperado: %q, obtido: %q", expectedSecond, result.Comments[1].Content)
+	}
+}
+
+func TestInterpolatedPropertyValue(t *testing.T) {
+	scss := `
+$img: theme;
+
+.box {
+  background-image: url('/img/#{$img}.png');
+}`
+
+	result, err := parser.ParseScssContent(scss)
+	if err != nil {
+		t.Fatalf("erro ao fazer parse: %v", err)
+	}
+
+	if len(result.Rules) != 1 {
+		t.Fatalf("esperado 1 regra, obtido %d", len(result.Rules))
+	}
+
+	rule := result.Rules[0]
+	if rule.Selector != ".box" {
+		t.Errorf("esperado seletor .box, obtido: %q", rule.Selector)
+	}
+
+	if len(rule.Properties) != 1 {
+		t.Fatalf("esperado 1 propriedade, obtido %d", len(rule.Properties))
+	}
+
+	expectedProp := "background-image: url('/img/#{$img}.png')"
+	if strings.TrimSpace(rule.Properties[0]) != expectedProp {
+		t.Errorf("propriedade incorreta. esperado: %q, obtido: %q", expectedProp, rule.Properties[0])
+	}
+}
+
+func TestSelectorWithMultipleInterpolations(t *testing.T) {
+	scss := `
+$size: large;
+$theme: dark;
+
+.btn-#{$size}-#{$theme} {
+  color: black;
+}`
+
+	result, err := parser.ParseScssContent(scss)
+	if err != nil {
+		t.Fatalf("erro ao fazer parse: %v", err)
+	}
+
+	if len(result.Rules) != 1 {
+		t.Fatalf("esperado 1 regra, obtido %d", len(result.Rules))
+	}
+
+	rule := result.Rules[0]
+	expectedSelector := ".btn-#{$size}-#{$theme}"
+	if rule.Selector != expectedSelector {
+		t.Errorf("esperado seletor %q, obtido %q", expectedSelector, rule.Selector)
+	}
+
+	if len(rule.Properties) != 1 || rule.Properties[0] != "color: black" {
+		t.Errorf("propriedades incorretas: %v", rule.Properties)
+	}
+}

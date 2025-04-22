@@ -1,0 +1,5 @@
+$img: theme;
+
+.box {
+  background-image: url('/img/#{$img}.png');
+}

@@ -1,0 +1,6 @@
+$size: large;
+$theme: dark;
+
+.btn-#{$size}-#{$theme}[data-type="x"]:hover::before {
+  color: black;
+}

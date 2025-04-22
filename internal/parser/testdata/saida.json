@@ -69,6 +69,27 @@
   ],
   "rules": [
     {
+      "selector": "@mixin border-radius($radius)",
+      "properties": [
+        "-webkit-border-radius: $radius",
+        "-moz-border-radius: $radius",
+        "border-radius: $radius"
+      ]
+    },
+    {
+      "selector": "@function double($number)",
+      "properties": []
+    },
+    {
+      "selector": "%button-style",
+      "properties": [
+        "display: inline-block",
+        "padding: $padding",
+        "background-color: $primary-color",
+        "color: white"
+      ]
+    },
+    {
       "selector": "nav ul",
       "properties": [
         "margin: 0",
@@ -99,10 +120,14 @@
       "properties": []
     },
     {
-      "selector": ".column-#",
+      "selector": "@for $i from 1 through 3 .column-#{$i}",
       "properties": [
         "width: 100% / $i"
       ]
+    },
+    {
+      "selector": "@for $i from 1 through 3",
+      "properties": []
     },
     {
       "selector": ".box",
@@ -117,13 +142,20 @@
       "expression": "$i from 1 through 3",
       "body": [
         {
-          "selector": ".column-#",
+          "selector": ".column-#{$i}",
           "properties": [
             "width: 100% / $i"
           ]
         }
       ],
       "raw": "@for $i from 1 through 3 {\n    .column-#{$i} {\n        width: 100% / $i;\n    }\n}"
+    }
+  ],
+  "comments": [
+    {
+      "type": "comment",
+      "content": "/* Começo da nav styles */",
+      "line": 22
     }
   ]
 }
