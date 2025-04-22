@@ -27,10 +27,16 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 	var captureParams []string
 	var blockDepth int
 	var allLines []string
+	lineNumber := 0
+
+	commentTracker := NewMultilineCommentTracker()
 
 	for scanner.Scan() {
 		line := scanner.Text()
 		allLines = append(allLines, line)
+		lineNumber++
+
+		commentTracker.ProcessLine(line, lineNumber)
 
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
@@ -151,6 +157,7 @@ func ParseScssFile(path string) (*ScssJsonExport, error) {
 
 	result.Rules = parseRules(allLines)
 	result.Loops = parseLoops(allLines)
+	result.Comments = append(result.Comments, commentTracker.Comments()...)
 
 	return result, scanner.Err()
 }
@@ -167,10 +174,16 @@ func ParseScssContent(content string) (*ScssJsonExport, error) {
 	var captureParams []string
 	var blockDepth int
 	var allLines []string
+	lineNumber := 0
+
+	commentTracker := NewMultilineCommentTracker()
 
 	for scanner.Scan() {
 		line := scanner.Text()
 		allLines = append(allLines, line)
+		lineNumber++
+
+		commentTracker.ProcessLine(line, lineNumber)
 
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
@@ -243,6 +256,8 @@ func ParseScssContent(content string) (*ScssJsonExport, error) {
 
 	result.Rules = parseRules(allLines)
 	result.Loops = parseLoops(allLines)
+	result.Comments = append(result.Comments, commentTracker.Comments()...)
+
 	return result, scanner.Err()
 }
 

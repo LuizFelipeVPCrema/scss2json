@@ -60,4 +60,11 @@ type ScssJsonExport struct {
 	Placeholders []ScssPlaceholder `json:"placeholders"`
 	Rules        []ScssRule        `json:"rules"`
 	Loops        []ScssLoop        `json:"loops"`
+	Comments     []ScssComment     `json:"comments"`
+}
+
+type ScssComment struct {
+	Type    string `json:"type"`
+	Content string `json:"content"`
+	Line    int    `json:"line"`
 }

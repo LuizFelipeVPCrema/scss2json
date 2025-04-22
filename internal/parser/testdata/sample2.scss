@@ -1,0 +1,8 @@
+/* Comentário global */
+$cor: red;
+
+/* Outro
+comentário */
+@mixin exemplo() {
+  color: $cor;
+}
