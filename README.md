@@ -2,26 +2,28 @@
   🇧🇷 Português | <a href="README.en.md">🇺🇸 English</a>
 </p>
 
-# SCSS2JSON 
+# SCSS2JSON
 
-**SCSS2JSON** é uma biblioteca e ferramenta de linha de comando escrita em Go que faz o _parse_ de arquivos `.scss` e transforma seus conteúdos em uma estrutura JSON bem definida. Ela é capaz de identificar variáveis, mixins, funções, placeholders, regras CSS e loops como `@for`, suportando hierarquia e aninhamentos SCSS complexos.
+**SCSS2JSON** é uma biblioteca e ferramenta de linha de comando escrita em Go que realiza o _parse_ de arquivos `.scss` e transforma seu conteúdo em uma estrutura JSON baseada em **AST (Abstract Syntax Tree)**. Suporta SCSS moderno com variáveis, mixins, funções, placeholders, loops, regras aninhadas e comentários multilinha.
 
 ---
 
 ## Funcionalidades
 
-- Extração estruturada de:
-  - Variáveis (`$variavel`)
+- Extração estruturada de nós SCSS como:
+  - Variáveis (`$cor: red`)
   - Mixins (`@mixin`)
   - Funções (`@function`)
-  - Placeholders (`%placeholder`)
+  - Placeholders (`%nome`)
+  - Loops `@for`
   - Regras aninhadas (`nav ul`, `a:hover`)
-  - Loops (`@for`, com corpo e expressões)
+  - Blocos `@media`
+  - Comentários (inclusive multilinha)
 
 - Suporte a:
-  - Entrada via arquivo SCSS
-  - Entrada via string SCSS (ideal para uso em APIs ou ferramentas visuais)
-  - Exportação JSON indentada
+  - Entrada via arquivo `.scss`
+  - Entrada via string SCSS (ideal para APIs)
+  - Exportação JSON formatada
   - CLI simples para conversão direta
 
 ---
@@ -62,10 +64,10 @@ result, err := scss2json.ParseFile("styles.scss")
 if err != nil {
     panic(err)
 }
-fmt.Println(result.Variables)
+fmt.Println(result.Nodes) // AST nodes
 ```
 
-### ➔ Parseando conteúdo SCSS como `string`
+### ➔ Parseando conteúdo como string
 
 ```go
 content := `$color: red;\n@mixin test { color: $color; }`
@@ -73,39 +75,41 @@ result, err := scss2json.ParseContent(content)
 if err != nil {
     panic(err)
 }
-fmt.Println(result.Mixins[0].Name) // test
+fmt.Println(result.Nodes)
 ```
 
 ---
 
-## Estrutura do JSON
+## Estrutura do JSON (exemplo)
 
 ```json
-{
-  "variables": [...],
-  "mixins": [...],
-  "functions": [...],
-  "placeholders": [...],
-  "rules": [...],
-  "loops": [...]
-}
+[
+  {
+    "type": "variable",
+    "name": "$color",
+    "value": "red",
+    "raw": "$color: red;"
+  },
+  {
+    "type": "mixin",
+    "name": "button",
+    "params": ["$radius"],
+    "body": ["border-radius: $radius;"],
+    "raw": "@mixin button($radius) { ... }"
+  },
+  ...
+]
 ```
 
 ---
 
 ## Exemplos Avançados
 
-### Uso com API Go
+### Usando em uma API HTTP com Go
 
 ```go
-import (
-  "net/http"
-  "io/ioutil"
-  "github.com/LuizFelipeVPCrema/scss2json"
-)
-
 func handler(w http.ResponseWriter, r *http.Request) {
-    body, _ := ioutil.ReadAll(r.Body)
+    body, _ := io.ReadAll(r.Body)
     result, _ := scss2json.ParseContent(string(body))
     json.NewEncoder(w).Encode(result)
 }
@@ -119,33 +123,32 @@ scss2json.ExportToJson(result, "saida.json")
 
 ---
 
+## API Pública
 
-## API
-
-| Função                       | Descrição                                |
-|-----------------------------|------------------------------------------|
-| `ParseFile(path)`          | Parse de arquivo SCSS                    |
-| `ParseContent(content)`    | Parse de string SCSS                     |
-| `ExportToJson(result, out)`| Exporta resultado como JSON              |
+| Função                         | Descrição                               |
+|-------------------------------|------------------------------------------|
+| `ParseFile(path)`             | Faz o parse de um arquivo SCSS           |
+| `ParseContent(content)`       | Faz o parse de conteúdo como string      |
+| `ExportToJson(ast, outPath)`  | Exporta o resultado da AST em JSON       |
 
 ---
 
 ## Tecnologias
 
 - Go 1.21+
-- Regex para parsing
-- `encoding/json` para exportação
-- `flag` para CLI
+- Expressões regulares (`regexp`)
+- `encoding/json` para serialização
+- `flag` para argumentos CLI
 
 ---
 
 ## Contribuições
 
-Contribuições, issues e melhorias são bem-vindas!
+Contribuições são bem-vindas!
 
 1. Forke o projeto
-2. Crie sua branch: `git checkout -b minha-feature`
-3. Commit: `git commit -m 'feat: minha nova feature'`
+2. Crie uma branch: `git checkout -b minha-feature`
+3. Commit: `git commit -m 'feat: nova feature'`
 4. Push: `git push origin minha-feature`
 5. Crie um Pull Request
 
@@ -157,5 +160,4 @@ Este projeto está licenciado sob a Licença MIT.
 
 MIT © [LuizFelipeVPCrema](https://github.com/LuizFelipeVPCrema)
 
----
 
