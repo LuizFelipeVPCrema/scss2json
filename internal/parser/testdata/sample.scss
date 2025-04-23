@@ -1,7 +1,10 @@
 $primary-color: #3498db;
 $padding: 10px;
 $font-stack: Helvetica, sans-serif;
- 
+
+/* 
+    Comentario multi-linha para teste
+*/
 @mixin border-radius($radius) {
     -webkit-border-radius: $radius;
     -moz-border-radius: $radius;
@@ -10,7 +13,7 @@ $font-stack: Helvetica, sans-serif;
 @function double($number) {
     @return $number * 2;  
 }
- 
+
 %button-style {
   display: inline-block;
   padding: $padding;

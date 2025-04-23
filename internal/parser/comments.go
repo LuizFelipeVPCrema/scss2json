@@ -4,12 +4,12 @@ import (
 	"strings"
 )
 
-// MultilineCommentTracker encapsula o estado de captura de comentários multilinha.
+// MultilineCommentTracker captura comentários multilinha como nós ASTComment.
 type MultilineCommentTracker struct {
-	inComment bool
-	startLine int
-	content   []string
-	comments  []ScssComment
+	inComment    bool
+	startLine    int
+	contentLines []string
+	collected    []ASTNode
 }
 
 // NewMultilineCommentTracker cria um novo tracker.
@@ -17,45 +17,41 @@ func NewMultilineCommentTracker() *MultilineCommentTracker {
 	return &MultilineCommentTracker{}
 }
 
-// Comments retorna todos os comentários coletados.
-func (m *MultilineCommentTracker) Comments() []ScssComment {
-	return m.comments
+// Comments retorna os nós ASTComment gerados.
+func (m *MultilineCommentTracker) Comments() []ASTNode {
+	return m.collected
 }
 
-// ProcessLine analisa uma linha e atualiza o estado da captura.
+// ProcessLine analisa a linha e atualiza o estado interno da captura de comentários.
 func (m *MultilineCommentTracker) ProcessLine(line string, lineNumber int) {
-	if m.inComment {
-		m.content = append(m.content, line)
+	switch {
+	case m.inComment:
+		m.contentLines = append(m.contentLines, line)
 		if strings.Contains(line, "*/") {
 			m.inComment = false
-			m.comments = append(m.comments, ScssComment{
-				Type:    "comment",
-				Content: strings.TrimSpace(strings.Join(m.content, "\n")),
+			m.collected = append(m.collected, &ASTComment{
+				Content: strings.TrimSpace(strings.Join(m.contentLines, "\n")),
 				Line:    m.startLine,
+				raw:     strings.Join(m.contentLines, "\n"),
 			})
-			m.content = nil
+			m.contentLines = nil
 		}
-		return
-	}
 
-	if strings.Contains(line, "/*") {
-		if strings.Contains(line, "*/") {
-			// Comentário em uma linha
-			start := strings.Index(line, "/*")
-			end := strings.Index(line, "*/")
-			if start >= 0 && end > start {
-				comment := strings.TrimSpace(line[start : end+2])
-				m.comments = append(m.comments, ScssComment{
-					Type:    "comment",
-					Content: comment,
-					Line:    lineNumber,
-				})
-			}
-		} else {
-			// Início de um comentário multilinha
-			m.inComment = true
-			m.startLine = lineNumber
-			m.content = []string{line}
+	case strings.Contains(line, "/*") && strings.Contains(line, "*/"):
+		start := strings.Index(line, "/*")
+		end := strings.Index(line, "*/")
+		if start >= 0 && end > start {
+			comment := strings.TrimSpace(line[start : end+2])
+			m.collected = append(m.collected, &ASTComment{
+				Content: comment,
+				Line:    lineNumber,
+				raw:     comment,
+			})
 		}
+
+	case strings.Contains(line, "/*"):
+		m.inComment = true
+		m.startLine = lineNumber
+		m.contentLines = []string{line}
 	}
 }

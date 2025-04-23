@@ -2,272 +2,431 @@ package parser
 
 import (
 	"bufio"
+	"io"
 	"os"
 	"regexp"
 	"strings"
 )
 
-var reCommentCategory = regexp.MustCompile(`^\\s*//\\s*(.+)`)
+// var reCommentCategory = regexp.MustCompile(`^\\s*//\\s*(.+)`)
+var reLoop = regexp.MustCompile(`^@for\s+(\$\w+)\s+from\s+([0-9]+)\s+through\s+([0-9]+)\s*\{`)
 
-func ParseScssFile(path string) (*ScssJsonExport, error) {
-	file, err := os.Open(path)
+func ParseScssFile(path string) (*AST, error) {
+	contentBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	return ParseAST(strings.NewReader(string(contentBytes))), nil
+}
 
-	result := &ScssJsonExport{}
-	scanner := bufio.NewScanner(file)
+func ParseScssContent(content string) (*AST, error) {
+	return ParseAST(strings.NewReader(content)), nil
+}
 
-	var currentCategory string
-	var currentRaw []string
-	var currentBody []string
-	var captureMode string
-	var captureName string
-	var captureParams []string
-	var blockDepth int
-	var allLines []string
-	lineNumber := 0
-
+func ParseAST(reader io.Reader) *AST {
+	scanner := bufio.NewScanner(reader)
+	ast := &AST{}
 	commentTracker := NewMultilineCommentTracker()
+
+	var (
+		inBlock        bool
+		blockType      string
+		blockName      string
+		blockParams    []string
+		blockCondition string
+		blockLines     []string
+		blockRaw       []string
+		lineNumber     int
+		braceDepth     int
+	)
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		allLines = append(allLines, line)
 		lineNumber++
+		trimmed := strings.TrimSpace(line)
 
 		commentTracker.ProcessLine(line, lineNumber)
 
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
+		// Ignora linhas vazias e comentários inline
+		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
 			continue
 		}
 
-		// Comentário para categoria
-		if matches := reCommentCategory.FindStringSubmatch(line); len(matches) > 0 {
-			currentCategory = matches[1]
-			continue
-		}
+		// Dentro de um bloco (mixin, function, rule, etc)
+		if inBlock {
+			blockRaw = append(blockRaw, line)
+			blockLines = append(blockLines, trimmed)
 
-		// Captura de bloco ativo (mixins, functions, placeholders)
-		if captureMode != "" {
-			currentRaw = append(currentRaw, line)
+			braceDepth += strings.Count(trimmed, "{")
+			braceDepth -= strings.Count(trimmed, "}")
 
-			blockDepth += strings.Count(line, "{")
-			blockDepth -= strings.Count(line, "}")
+			if braceDepth == 0 {
+				inBlock = false
+				raw := strings.Join(blockRaw, "\n")
+				bodyLines := blockLines[1 : len(blockLines)-1]
 
-			bodyLine := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(line, "{", ""), "}", ""))
-			if bodyLine != "" {
-				currentBody = append(currentBody, bodyLine)
-			}
-
-			if blockDepth <= 0 {
-				switch captureMode {
+				switch blockType {
 				case "mixin":
-					result.Mixins = append(result.Mixins, ScssMixin{
-						Type:   "mixin",
-						Name:   captureName,
-						Params: captureParams,
-						Body:   currentBody,
-						Raw:    strings.Join(currentRaw, "\n"),
+					ast.Nodes = append(ast.Nodes, &ASTMixin{
+						Name:   blockName,
+						Params: blockParams,
+						Body:   bodyLines,
+						raw:    raw,
 					})
 				case "function":
-					result.Functions = append(result.Functions, ScssFunction{
-						Type:   "function",
-						Name:   captureName,
-						Params: captureParams,
-						Body:   currentBody,
-						Raw:    strings.Join(currentRaw, "\n"),
+					ast.Nodes = append(ast.Nodes, &ASTFunction{
+						Name:   blockName,
+						Params: blockParams,
+						Body:   bodyLines,
+						raw:    raw,
 					})
 				case "placeholder":
-					result.Placeholders = append(result.Placeholders, ScssPlaceholder{
-						Type: "placeholder",
-						Name: captureName,
-						Body: currentBody,
-						Raw:  strings.Join(currentRaw, "\n"),
+					ast.Nodes = append(ast.Nodes, &ASTPlaceholder{
+						Name: blockName,
+						Body: bodyLines,
+						raw:  raw,
 					})
+				case "media":
+					ast.Nodes = append(ast.Nodes, &ASTMediaBlock{
+						Condition: blockCondition,
+						Body:      parseBlockToNodes(bodyLines),
+						raw:       raw,
+					})
+				case "loop":
+					ast.Nodes = append(ast.Nodes, &ASTLoop{
+						Expression: blockCondition,
+						Body:       parseBlockToNodes(bodyLines),
+						raw:        raw,
+					})
+				case "rule":
+					parsed := parseBlockToNodes(bodyLines)
+					rule := &ASTRule{
+						Selector: blockName,
+						raw:      raw,
+						Line:     lineNumber - len(blockLines) + 1,
+					}
+					for _, child := range parsed {
+						switch n := child.(type) {
+						case *ASTRule:
+							rule.Children = append(rule.Children, n)
+						case *ASTComment:
+							rule.Children = append(rule.Children, n)
+						}
+					}
+					rule.Properties = extractProperties(bodyLines)
+					ast.Nodes = append(ast.Nodes, rule)
 				}
-				// Reset
-				captureMode = ""
-				captureName = ""
-				captureParams = nil
-				currentRaw = nil
-				currentBody = nil
-				blockDepth = 0
+
+				// Reset bloco
+				inBlock = false
+				blockType, blockName, blockCondition = "", "", ""
+				blockParams, blockLines, blockRaw = nil, nil, nil
 			}
 			continue
 		}
 
-		// Variável
-		if ok, name, value, modifier := isVariableDeclaration(line); ok {
-			result.Variables = append(result.Variables, ScssVariable{
-				Type:      "variable",
-				Name:      name,
-				Value:     value,
-				Unit:      extractUnit(value),
-				Raw:       line,
-				Modifiers: optionalModifier(modifier),
-				Category:  currentCategory,
+		// Declaração de variável
+		if ok, name, value, _ := isVariableDeclaration(line); ok {
+			ast.Nodes = append(ast.Nodes, &ASTVariable{
+				Name:  "$" + name,
+				Value: value,
+				raw:   line,
 			})
 			continue
 		}
 
 		// Mixin
 		if ok, name, params := isMixinDeclaration(line); ok {
-			captureMode = "mixin"
-			captureName = name
-			captureParams = params
-			currentRaw = []string{line}
-			currentBody = nil
-			blockDepth = 1
+			if strings.Contains(line, "{") && strings.Contains(line, "}") {
+				ast.Nodes = append(ast.Nodes, &ASTMixin{
+					Name:   name,
+					Params: params,
+					Body:   []string{extractBody(line)},
+					raw:    line,
+				})
+			} else {
+				inBlock = true
+				blockType = "mixin"
+				blockName = name
+				blockParams = params
+				blockLines = []string{trimmed}
+				blockRaw = []string{line}
+				braceDepth = 1
+			}
 			continue
 		}
 
-		// Function
+		// Função
 		if ok, name, params, inlineBody, raw := isFunctionDeclaration(line); ok {
 			if inlineBody != nil {
-				result.Functions = append(result.Functions, ScssFunction{
-					Type:   "function",
+				ast.Nodes = append(ast.Nodes, &ASTFunction{
 					Name:   name,
 					Params: params,
 					Body:   inlineBody,
-					Raw:    raw,
+					raw:    raw,
 				})
-				continue
+			} else {
+				inBlock = true
+				blockType = "function"
+				blockName = name
+				blockParams = params
+				blockLines = []string{trimmed}
+				blockRaw = []string{line}
+				braceDepth = 1
 			}
-			captureMode = "function"
-			captureName = name
-			captureParams = params
-			currentRaw = []string{line}
-			currentBody = nil
-			blockDepth = 1
 			continue
 		}
 
 		// Placeholder
 		if ok, name := isPlaceholderDeclaration(line); ok {
-			captureMode = "placeholder"
-			captureName = name
-			currentRaw = []string{line}
-			currentBody = nil
-			blockDepth = 1
+			inBlock = true
+			blockType = "placeholder"
+			blockName = name
+			blockLines = []string{trimmed}
+			blockRaw = []string{line}
+			braceDepth = 1
+			continue
+		}
+
+		// Media query
+		if strings.HasPrefix(trimmed, "@media") {
+			condition := extractMediaCondition(trimmed)
+			inBlock = true
+			blockType = "media"
+			blockCondition = condition
+			blockLines = []string{trimmed}
+			blockRaw = []string{line}
+			braceDepth = 1
+			continue
+		}
+
+		// Loop
+		if matches := reLoop.FindStringSubmatch(trimmed); len(matches) > 0 {
+			expr := matches[1] + " from " + matches[2] + " through " + matches[3]
+			inBlock = true
+			blockType = "loop"
+			blockCondition = expr
+			blockLines = []string{trimmed}
+			blockRaw = []string{line}
+			braceDepth = 1
+			continue
+		}
+
+		// Regra CSS normal
+		if strings.HasSuffix(trimmed, "{") {
+			selector := strings.TrimSuffix(trimmed, "{")
+			inBlock = true
+			blockType = "rule"
+			blockName = strings.TrimSpace(selector)
+			blockLines = []string{trimmed}
+			blockRaw = []string{line}
+			braceDepth = 1
 			continue
 		}
 	}
 
-	cleanLines := FilterOutMediaBlocks(allLines)
-	result.Rules = parseRules(cleanLines)
-	result.MediaQueries = parseMediaBlocks(allLines)
-	result.Loops = parseLoops(allLines)
-	result.Comments = append(result.Comments, commentTracker.Comments()...)
-
-	return result, scanner.Err()
+	// Adiciona comentários finais
+	ast.Nodes = append(ast.Nodes, commentTracker.Comments()...)
+	return ast
 }
 
-func ParseScssContent(content string) (*ScssJsonExport, error) {
-	result := &ScssJsonExport{}
-	scanner := bufio.NewScanner(strings.NewReader(content))
+// func ParseAST(reader io.Reader) *AST {
+// 	scanner := bufio.NewScanner(reader)
+// 	ast := &AST{}
+// 	commentTracker := NewMultilineCommentTracker()
 
-	var currentCategory string
-	var currentRaw []string
-	var currentBody []string
-	var captureMode string
-	var captureName string
-	var captureParams []string
-	var blockDepth int
-	var allLines []string
-	lineNumber := 0
+// 	var (
+// 		inBlock        bool
+// 		blockType      string
+// 		blockName      string
+// 		blockParams    []string
+// 		blockCondition string
+// 		blockLines     []string
+// 		blockRaw       []string
+// 		lineNumber     int
+// 		braceDepth     int
+// 	)
 
-	commentTracker := NewMultilineCommentTracker()
+// 	for scanner.Scan() {
+// 		line := scanner.Text()
+// 		lineNumber++
+// 		trimmed := strings.TrimSpace(line)
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		allLines = append(allLines, line)
-		lineNumber++
+// 		commentTracker.ProcessLine(line, lineNumber)
 
-		commentTracker.ProcessLine(line, lineNumber)
+// 		// Ignora linhas vazias e comentários por enquanto
+// 		// TODO
+// 		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
+// 			continue
+// 		}
 
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
+// 		// Se estiver dentro de um bloco (mixin, function, media, etc)
+// 		if inBlock {
+// 			blockRaw = append(blockRaw, line)
+// 			blockLines = append(blockLines, trimmed)
 
-		if matches := reCommentCategory.FindStringSubmatch(line); len(matches) > 0 {
-			currentCategory = matches[1]
-			continue
-		}
+// 			braceDepth += strings.Count(trimmed, "{")
+// 			braceDepth -= strings.Count(trimmed, "}")
 
-		if captureMode != "" {
-			currentRaw = append(currentRaw, line)
-			blockDepth += strings.Count(line, "{")
-			blockDepth -= strings.Count(line, "}")
+// 			if braceDepth == 0 {
+// 				inBlock = false
 
-			bodyLine := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(line, "{", ""), "}", ""))
-			if bodyLine != "" {
-				currentBody = append(currentBody, bodyLine)
-			}
+// 				switch blockType {
+// 				case "mixin":
+// 					ast.Nodes = append(ast.Nodes, &ASTMixin{
+// 						Name:   blockName,
+// 						Params: blockParams,
+// 						Body:   blockLines[1 : len(blockLines)-1],
+// 						raw:    strings.Join(blockRaw, "\n"),
+// 					})
+// 				case "function":
+// 					ast.Nodes = append(ast.Nodes, &ASTFunction{
+// 						Name:   blockName,
+// 						Params: blockParams,
+// 						Body:   blockLines[1 : len(blockLines)-1],
+// 						raw:    strings.Join(blockRaw, "\n"),
+// 					})
+// 				case "media":
+// 					ast.Nodes = append(ast.Nodes, &ASTMediaBlock{
+// 						Condition: blockCondition,
+// 						Body:      parseBlockToNodes(blockLines[1 : len(blockLines)-1]),
+// 						raw:       strings.Join(blockRaw, "\n"),
+// 					})
+// 				case "loop":
+// 					ast.Nodes = append(ast.Nodes, &ASTLoop{
+// 						Expression: blockCondition,
+// 						Body:       parseBlockToNodes(blockLines[1 : len(blockLines)-1]),
+// 						raw:        strings.Join(blockRaw, "\n"),
+// 					})
+// 				case "placeholder":
+// 					ast.Nodes = append(ast.Nodes, &ASTPlaceholder{
+// 						Name: blockName,
+// 						Body: blockLines[1 : len(blockLines)-1],
+// 						raw:  strings.Join(blockRaw, "\n"),
+// 					})
+// 				case "rule":
+// 					ast.Nodes = append(ast.Nodes, &ASTRule{
+// 						Selector:   blockName,
+// 						Properties: extractProperties(blockLines[1 : len(blockLines)-1]),
+// 						raw:        strings.Join(blockRaw, "\n"),
+// 						Line:       lineNumber - len(blockLines) + 1,
+// 					})
+// 				}
 
-			if blockDepth <= 0 {
-				switch captureMode {
-				case "mixin":
-					result.Mixins = append(result.Mixins, ScssMixin{Type: "mixin", Name: captureName, Params: captureParams, Body: currentBody, Raw: strings.Join(currentRaw, "\n")})
-				case "function":
-					result.Functions = append(result.Functions, ScssFunction{Type: "function", Name: captureName, Params: captureParams, Body: currentBody, Raw: strings.Join(currentRaw, "\n")})
-				case "placeholder":
-					result.Placeholders = append(result.Placeholders, ScssPlaceholder{Type: "placeholder", Name: captureName, Body: currentBody, Raw: strings.Join(currentRaw, "\n")})
-				}
-				captureMode, captureName, captureParams = "", "", nil
-				currentRaw, currentBody = nil, nil
-				blockDepth = 0
-			}
-			continue
-		}
+// 				// Reset
+// 				inBlock = false
+// 				blockType, blockName, blockCondition = "", "", ""
+// 				blockParams, blockLines, blockRaw = nil, nil, nil
+// 			}
+// 			continue
+// 		}
 
-		if ok, name, value, modifier := isVariableDeclaration(line); ok {
-			result.Variables = append(result.Variables, ScssVariable{
-				Type: "variable", Name: name, Value: value, Unit: extractUnit(value), Raw: line, Modifiers: optionalModifier(modifier), Category: currentCategory,
-			})
-			continue
-		}
+// 		// === Blocos possíveis ===
 
-		if ok, name, params := isMixinDeclaration(line); ok {
-			captureMode, captureName, captureParams = "mixin", name, params
-			currentRaw = []string{line}
-			blockDepth = 1
-			continue
-		}
+// 		// Variáveis
+// 		if ok, name, value, _ := isVariableDeclaration(line); ok {
+// 			ast.Nodes = append(ast.Nodes, &ASTVariable{
+// 				Name:  "$" + name,
+// 				Value: value,
+// 				raw:   line,
+// 			})
+// 			continue
+// 		}
 
-		if ok, name, params, inlineBody, raw := isFunctionDeclaration(line); ok {
-			if inlineBody != nil {
-				result.Functions = append(result.Functions, ScssFunction{Type: "function", Name: name, Params: params, Body: inlineBody, Raw: raw})
-				continue
-			}
-			captureMode, captureName, captureParams = "function", name, params
-			currentRaw = []string{line}
-			blockDepth = 1
-			continue
-		}
+// 		// Mixins (inline por enquanto)
+// 		if ok, name, params := isMixinDeclaration(line); ok {
+// 			if strings.Contains(line, "{") && strings.Contains(line, "}") {
+// 				body := extractBody(line)
+// 				ast.Nodes = append(ast.Nodes, &ASTMixin{
+// 					Name:   name,
+// 					Params: params,
+// 					Body:   []string{body},
+// 					raw:    line,
+// 				})
+// 			} else {
+// 				// início de bloco
+// 				inBlock = true
+// 				blockType = "mixin"
+// 				blockName = name
+// 				blockParams = params
+// 				blockLines = []string{trimmed}
+// 				blockRaw = []string{line}
+// 				braceDepth = 1
+// 			}
+// 			continue
+// 		}
 
-		if ok, name := isPlaceholderDeclaration(line); ok {
-			captureMode, captureName = "placeholder", name
-			currentRaw = []string{line}
-			blockDepth = 1
-			continue
-		}
-	}
+// 		// Funções (mesma ideia)
+// 		if ok, name, params, inlineBody, raw := isFunctionDeclaration(line); ok {
+// 			if inlineBody != nil {
+// 				ast.Nodes = append(ast.Nodes, &ASTFunction{
+// 					Name:   name,
+// 					Params: params,
+// 					Body:   inlineBody,
+// 					raw:    raw,
+// 				})
+// 			} else {
+// 				// início de bloco
+// 				inBlock = true
+// 				blockType = "function"
+// 				blockName = name
+// 				blockParams = params
+// 				blockLines = []string{trimmed}
+// 				blockRaw = []string{line}
+// 				braceDepth = 1
+// 			}
+// 			continue
+// 		}
 
-	cleanLines := FilterOutMediaBlocks(allLines)
-	result.Rules = parseRules(cleanLines)
-	result.MediaQueries = parseMediaBlocks(allLines)
-	result.Loops = parseLoops(allLines)
-	result.Comments = append(result.Comments, commentTracker.Comments()...)
+// 		// Placeholder simples
+// 		if ok, name := isPlaceholderDeclaration(line); ok {
+// 			inBlock = true
+// 			blockType = "placeholder"
+// 			blockName = name
+// 			blockLines = []string{trimmed}
+// 			blockRaw = []string{line}
+// 			braceDepth = 1
+// 			continue
+// 		}
 
-	return result, scanner.Err()
-}
+// 		// Media
+// 		if strings.HasPrefix(trimmed, "@media") {
+// 			condition := extractMediaCondition(trimmed)
+// 			inBlock = true
+// 			blockType = "media"
+// 			blockCondition = condition
+// 			blockLines = []string{trimmed}
+// 			blockRaw = []string{line}
+// 			braceDepth = 1
+// 			continue
+// 		}
 
-func optionalModifier(input string) []string {
-	if input == "" {
-		return nil
-	}
-	return []string{strings.TrimSpace(input)}
-}
+// 		// Loop
+// 		if matches := reLoop.FindStringSubmatch(trimmed); len(matches) > 0 {
+// 			expr := matches[1] + " from " + matches[2] + " through " + matches[3]
+// 			inBlock = true
+// 			blockType = "loop"
+// 			blockCondition = expr
+// 			blockLines = []string{trimmed}
+// 			blockRaw = []string{line}
+// 			braceDepth = 1
+// 			continue
+// 		}
+
+// 		// Regras CSS (inline)
+// 		if strings.HasSuffix(trimmed, "{") {
+// 			selector := strings.TrimSuffix(trimmed, "{")
+// 			inBlock = true
+// 			blockType = "rule"
+// 			blockName = strings.TrimSpace(selector)
+// 			blockLines = []string{trimmed}
+// 			blockRaw = []string{line}
+// 			braceDepth = 1
+// 			continue
+// 		}
+// 	}
+
+// 	// Comentários
+// 	ast.Nodes = append(ast.Nodes, commentTracker.Comments()...)
+// 	return ast
+// }

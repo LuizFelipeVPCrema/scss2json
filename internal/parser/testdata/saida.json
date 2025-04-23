@@ -158,5 +158,63 @@
       "content": "/* Começo da nav styles */",
       "line": 22
     }
+  ],
+  "ast": [
+    {
+      "type": "varieble",
+      "name": "primary-color",
+      "value": "#3498db",
+      "unit": "db",
+      "raw": "$primary-color: #3498db;"
+    },
+    {
+      "type": "varieble",
+      "name": "padding",
+      "value": "10px",
+      "unit": "px",
+      "raw": "$padding: 10px;"
+    },
+    {
+      "type": "varieble",
+      "name": "font-stack",
+      "value": "Helvetica, sans-serif",
+      "raw": "$font-stack: Helvetica, sans-serif;"
+    },
+    {
+      "type": "mixin",
+      "name": "border-radius",
+      "params": [
+        "$radius"
+      ],
+      "body": [
+        "-webkit-border-radius: $radius;",
+        "-moz-border-radius: $radius;",
+        "border-radius: $radius;"
+      ],
+      "raw": "@mixin border-radius($radius) {\n    -webkit-border-radius: $radius;\n    -moz-border-radius: $radius;\n    border-radius: $radius;\n}"
+    },
+    {
+      "type": "function",
+      "name": "double",
+      "params": [
+        "$number"
+      ],
+      "body": [
+        "@return $number * 2;"
+      ],
+      "raw": "@function double($number) {\n    @return $number * 2;  \n}"
+    },
+    {
+      "type": "placeholder",
+      "name": "button-style",
+      "body": [
+        "display: inline-block;",
+        "padding: $padding;",
+        "background-color: $primary-color;",
+        "color: white;",
+        "@include border-radius(5px);"
+      ],
+      "raw": "%button-style {\n  display: inline-block;\n  padding: $padding;\n  background-color: $primary-color;\n  color: white;\n  @include border-radius(5px);\n}"
+    }
   ]
 }

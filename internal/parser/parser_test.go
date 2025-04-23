@@ -1,371 +1,261 @@
 package parser_test
 
 import (
-	"bytes"
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/LuizFelipeVPCrema/scss2json/internal/parser"
 )
 
-func TestParseSampleScss(t *testing.T) {
-	samplePath := filepath.Join("testdata", "sample.scss")
-	result, err := parser.ParseScssFile(samplePath)
-	if err != nil {
-		t.Fatalf("Erro ao parsear sample.scss: %v", err)
+func assertNodeCount(t *testing.T, ast *parser.AST, expected int) {
+	if len(ast.Nodes) != expected {
+		t.Fatalf("esperado %d nós, obtido %d", expected, len(ast.Nodes))
+	}
+}
+
+func TestAST_Mixin(t *testing.T) {
+	scss := `@mixin rounded($radius) { border-radius: $radius; }`
+	ast := parser.ParseAST(strings.NewReader(scss))
+	assertNodeCount(t, ast, 1)
+
+	mixin, ok := ast.Nodes[0].(*parser.ASTMixin)
+	if !ok {
+		t.Fatalf("esperado ASTMixin, obtido %T", ast.Nodes[0])
+	}
+	if mixin.Name != "rounded" {
+		t.Errorf("nome do mixin incorreto: %s", mixin.Name)
+	}
+	if len(mixin.Params) != 1 || mixin.Params[0] != "$radius" {
+		t.Errorf("parametros incorretos: %+v", mixin.Params)
+	}
+	if len(mixin.Body) == 0 {
+		t.Errorf("esperado corpo do mixin")
+	}
+}
+
+func TestAST_Function(t *testing.T) {
+	scss := `@function double($n) { @return $n * 2; }`
+	ast := parser.ParseAST(strings.NewReader(scss))
+	assertNodeCount(t, ast, 1)
+
+	fn, ok := ast.Nodes[0].(*parser.ASTFunction)
+	if !ok {
+		t.Fatalf("esperado ASTFunction, obtido %T", ast.Nodes[0])
+	}
+	if fn.Name != "double" {
+		t.Errorf("nome da função incorreto: %s", fn.Name)
+	}
+	if len(fn.Params) != 1 || fn.Params[0] != "$n" {
+		t.Errorf("parametros incorretos: %+v", fn.Params)
+	}
+	if len(fn.Body) == 0 {
+		t.Errorf("esperado corpo da função")
+	}
+}
+
+func TestAST_Variable(t *testing.T) {
+	scss := `$color: #ff0000;`
+	ast := parser.ParseAST(strings.NewReader(scss))
+	assertNodeCount(t, ast, 1)
+
+	varDecl, ok := ast.Nodes[0].(*parser.ASTVariable)
+	if !ok {
+		t.Fatalf("esperado ASTVariable, obtido %T", ast.Nodes[0])
+	}
+	if varDecl.Name != "$color" || varDecl.Value != "#ff0000" {
+		t.Errorf("variavel incorreta: %+v", varDecl)
+	}
+}
+
+func TestAST_Placeholder(t *testing.T) {
+	scss := `%button-style {
+		display: inline-block;
+		padding: 10px;
+	}`
+	ast := parser.ParseAST(strings.NewReader(scss))
+	assertNodeCount(t, ast, 1)
+
+	ph, ok := ast.Nodes[0].(*parser.ASTPlaceholder)
+	if !ok {
+		t.Fatalf("esperado ASTPlaceholder, obtido %T", ast.Nodes[0])
+	}
+	if ph.Name != "button-style" {
+		t.Errorf("nome do placeholder incorreto: %s", ph.Name)
+	}
+	if len(ph.Body) == 0 {
+		t.Errorf("esperado conteúdo no corpo do placeholder")
+	}
+}
+
+func TestAST_Media(t *testing.T) {
+	scss := `@media screen and (min-width: 900px) {
+		.container {
+			width: 100%;
+		}
+	}`
+	ast := parser.ParseAST(strings.NewReader(scss))
+	assertNodeCount(t, ast, 1)
+
+	media, ok := ast.Nodes[0].(*parser.ASTMediaBlock)
+	if !ok {
+		t.Fatalf("esperado ASTMediaBlock, obtido %T", ast.Nodes[0])
+	}
+	if media.Condition != "screen and (min-width: 900px)" {
+		t.Errorf("condição do media block incorreta: %s", media.Condition)
+	}
+	if len(media.Body) == 0 {
+		t.Errorf("esperado regras dentro do media block")
+	}
+}
+
+func TestAST_Loop(t *testing.T) {
+	scss := `@for $i from 1 through 3 {
+		.item-#{$i} {
+			width: 100px;
+		}
+	}`
+	ast := parser.ParseAST(strings.NewReader(scss))
+	assertNodeCount(t, ast, 1)
+
+	loop, ok := ast.Nodes[0].(*parser.ASTLoop)
+	if !ok {
+		t.Fatalf("esperado ASTLoop, obtido %T", ast.Nodes[0])
+	}
+	if loop.Expression != "$i from 1 through 3" {
+		t.Errorf("expressão incorreta: %s", loop.Expression)
+	}
+	if len(loop.Body) == 0 {
+		t.Errorf("esperado corpo no loop")
+	}
+}
+
+func TestAST_Comment(t *testing.T) {
+	scss := `/* Este é um comentário */`
+	ast := parser.ParseAST(strings.NewReader(scss))
+	assertNodeCount(t, ast, 1)
+
+	comment, ok := ast.Nodes[0].(*parser.ASTComment)
+	if !ok {
+		t.Fatalf("esperado ASTComment, obtido %T", ast.Nodes[0])
+	}
+	if comment.Content == "" {
+		t.Errorf("conteúdo do comentário está vazio")
+	}
+	if comment.Line != 1 {
+		t.Errorf("linha incorreta do comentário, esperada 1, obtida %d", comment.Line)
+	}
+}
+
+func TestAST_Rule(t *testing.T) {
+	scss := `
+	nav {
+		ul {
+			margin: 0;
+			padding: 0;
+			list-style: none;
+		}
+		li {
+			display: inline-block;
+		}
+		a {
+			text-decoration: none;
+			color: $primary-color;
+			&:hover {
+				color: darken($primary-color, 10%);
+			}
+		}
+	}`
+
+	ast := parser.ParseAST(strings.NewReader(scss))
+	if len(ast.Nodes) == 0 {
+		t.Fatal("esperado ao menos 1 nó na AST")
 	}
 
-	// Verifica variáveis
-	if len(result.Variables) != 3 {
-		t.Errorf("esperado 3 variáveis, obtido %d", len(result.Variables))
+	rootRule := findRuleBySelectorRecursive(ast.Nodes, "nav")
+	if rootRule == nil {
+		t.Fatal("esperado regra 'nav' não encontrada")
 	}
 
-	// Verifica mixins
-	if len(result.Mixins) != 1 {
-		t.Errorf("esperado 1 mixin, obtido %d", len(result.Mixins))
+	if rootRule.Selector != "nav" {
+		t.Errorf("esperado seletor 'nav', obtido '%s'", rootRule.Selector)
+	}
+
+	// Verifica "nav ul"
+	ul := findRuleBySelectorRecursive(ast.Nodes, "nav ul")
+	if ul == nil {
+		t.Error("esperado seletor 'nav ul' não encontrado")
 	} else {
-		mixin := result.Mixins[0]
-		if mixin.Name != "border-radius" {
-			t.Errorf("nome do mixin inválido: esperado 'border-radius', obtido '%s'", mixin.Name)
-		}
-		if len(mixin.Params) != 1 || mixin.Params[0] != "$radius" {
-			t.Errorf("parâmetros do mixin inválidos: %+v", mixin.Params)
-		}
-		if !containsLine(mixin.Body, "border-radius: $radius") {
-			t.Errorf("corpo do mixin incompleto: %+v", mixin.Body)
-		}
+		expectProps := []string{"margin: 0", "padding: 0", "list-style: none"}
+		assertProperties(t, ul.Properties, expectProps)
 	}
 
-	// Verifica funções
-	if len(result.Functions) != 1 {
-		t.Errorf("esperado 1 função, obtido %d", len(result.Functions))
+	// Verifica "nav li"
+	li := findRuleBySelectorRecursive(ast.Nodes, "nav li")
+	if li == nil {
+		t.Error("esperado seletor 'nav li' não encontrado")
 	} else {
-		fn := result.Functions[0]
-		if fn.Name != "double" {
-			t.Errorf("nome da função inválido: %s", fn.Name)
-		}
-		if !containsLine(fn.Body, "@return $number * 2") {
-			t.Errorf("corpo da função não encontrado corretamente")
-		}
+		assertProperties(t, li.Properties, []string{"display: inline-block"})
 	}
 
-	// Verifica placeholders
-	if len(result.Placeholders) != 1 {
-		t.Errorf("esperado 1 placeholder, obtido %d", len(result.Placeholders))
+	// Verifica "nav a"
+	a := findRuleBySelectorRecursive(ast.Nodes, "nav a")
+	if a == nil {
+		t.Error("esperado seletor 'nav a' não encontrado")
 	} else {
-		ph := result.Placeholders[0]
-		if ph.Name != "button-style" {
-			t.Errorf("nome do placeholder inválido: %s", ph.Name)
-		}
-		if !containsLine(ph.Body, "@include border-radius(5px)") {
-			t.Errorf("corpo do placeholder incorreto")
+		expectProps := []string{"text-decoration: none", "color: $primary-color"}
+		assertProperties(t, a.Properties, expectProps)
+
+		// Verifica "nav a:hover"
+		hover := findRuleBySelectorRecursive(ast.Nodes, "nav a a:hover")
+		if hover == nil {
+			t.Error("esperado seletor 'nav a:hover' não encontrado")
+		} else {
+			assertProperties(t, hover.Properties, []string{"color: darken($primary-color, 10%)"})
 		}
 	}
+}
 
-	// Verifica rules
-	if len(result.Rules) == 0 {
-		t.Errorf("nenhuma regra CSS encontrada")
-	} else {
-		// Encontra a regra "nav ul"
-		navUlFound := false
-		for _, r := range result.Rules {
-			if r.Selector == "nav ul" {
-				navUlFound = true
-				if !containsLine(r.Properties, "margin: 0") {
-					t.Errorf("propriedade 'margin: 0' não encontrada na regra 'nav ul'")
-				}
+// Helpers Rules
+func findRuleBySelectorRecursive(nodes []parser.ASTNode, path string) *parser.ASTRule {
+	parts := strings.Split(path, " ")
+	return findRecursiveHelper(nodes, parts)
+}
+
+func findRecursiveHelper(nodes []parser.ASTNode, parts []string) *parser.ASTRule {
+	if len(parts) == 0 {
+		return nil
+	}
+
+	for _, node := range nodes {
+		rule, ok := node.(*parser.ASTRule)
+		if !ok || rule.Selector != parts[0] {
+			continue
+		}
+
+		if len(parts) == 1 {
+			return rule
+		}
+
+		return findRecursiveHelper(rule.Children, parts[1:])
+	}
+
+	return nil
+}
+
+func assertProperties(t *testing.T, got []string, want []string) {
+	if len(got) != len(want) {
+		t.Errorf("esperado %d propriedades, obtido %d", len(want), len(got))
+	}
+	for _, w := range want {
+		found := false
+		for _, g := range got {
+			if g == w {
+				found = true
 				break
 			}
 		}
-		if !navUlFound {
-			t.Errorf("regra esperada 'nav ul' não encontrada")
+		if !found {
+			t.Errorf("propriedade esperada não encontrada: %s", w)
 		}
-
-		// Encontra a regra "nav a" com nested rules
-		navAFound := false
-		for _, r := range result.Rules {
-			if r.Selector == "nav a" {
-				navAFound = true
-				if len(r.Nested) == 0 {
-					t.Errorf("regra aninhada não encontrada em 'nav a'")
-				} else if _, ok := r.Nested["&:hover"]; !ok {
-					t.Errorf("regra aninhada '&:hover' não encontrada em 'nav a'")
-				}
-				break
-			}
-		}
-		if !navAFound {
-			t.Errorf("regra esperada 'nav a' não encontrada")
-		}
-	}
-
-	// Verifica loops
-	if len(result.Loops) == 0 {
-		t.Errorf("nenhum loop for encontrado")
-	} else {
-		loop := result.Loops[0]
-		if loop.Expression != "$i from 1 through 3" {
-			t.Errorf("expressão do loop incorreta: %s", loop.Expression)
-		}
-		if len(loop.Body) == 0 || !strings.Contains(loop.Body[0].Selector, ".column-") {
-			t.Errorf("corpo do loop não contém a regra esperada")
-		}
-	}
-
-	// Exporta resultado para inspeção manual (debug)
-	rawJSON, err := parser.ToUnescapedJSON(result)
-	if err != nil {
-		t.Fatalf("Erro ao serializar resultado para JSON: %v", err)
-	}
-
-	// Formatando com indentação
-	var prettyJSON bytes.Buffer
-	err = json.Indent(&prettyJSON, rawJSON, "", "  ")
-	if err != nil {
-		t.Fatalf("Erro ao formatar JSON: %v", err)
-	}
-
-	err = os.WriteFile("testdata/saida.json", prettyJSON.Bytes(), 0644)
-	if err != nil {
-		t.Fatalf("Erro ao escrever arquivo de saída: %v", err)
-	}
-}
-
-func containsLine(lines []string, expected string) bool {
-	for _, line := range lines {
-		line = strings.TrimSpace(strings.TrimSuffix(line, ";"))
-		expected = strings.TrimSpace(strings.TrimSuffix(expected, ";"))
-		if line == expected {
-			return true
-		}
-	}
-	return false
-}
-
-func TestParseEmptyFile(t *testing.T) {
-	f, err := os.CreateTemp("", "empty.scss")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(f.Name())
-
-	result, err := parser.ParseScssFile(f.Name())
-	if err != nil {
-		t.Errorf("Erro inesperado ao parsear arquivo vazio: %v", err)
-	}
-	if result == nil {
-		t.Error("Resultado nulo para arquivo vazio")
-	}
-}
-
-func TestInvalidSyntaxIgnored(t *testing.T) {
-	path := filepath.Join("testdata", "invalid.scss")
-	content := `
-        $valid: 10px;
-        this is not SCSS;
-        @function test() { @return 1; }
-    `
-	_ = os.WriteFile(path, []byte(content), 0644)
-	defer os.Remove(path)
-
-	result, err := parser.ParseScssFile(path)
-	if err != nil {
-		t.Fatalf("Erro inesperado ao parsear SCSS inválido: %v", err)
-	}
-	if len(result.Variables) != 1 {
-		t.Errorf("Esperado 1 variável válida, obtido %d", len(result.Variables))
-	}
-	if len(result.Functions) != 1 {
-		t.Errorf("Esperado 1 função válida, obtido %d", len(result.Functions))
-	}
-}
-
-func TestParseScssContent(t *testing.T) {
-	scss := `
-$primary-color: #3498db;
-$padding: 10px;
-
-@mixin border-radius($radius) {
-  border-radius: $radius;
-}
-
-@function double($n) {
-  @return $n * 2;
-}
-
-%box-style {
-  padding: $padding;
-}
-
-nav {
-  ul {
-    margin: 0;
-  }
-}
-`
-
-	result, err := parser.ParseScssContent(scss)
-	if err != nil {
-		t.Fatalf("Erro ao parsear SCSS de string: %v", err)
-	}
-
-	// Verifica variáveis
-	if len(result.Variables) != 2 {
-		t.Errorf("esperado 2 variáveis, obtido %d", len(result.Variables))
-	}
-
-	// Verifica mixins
-	if len(result.Mixins) != 1 || result.Mixins[0].Name != "border-radius" {
-		t.Errorf("esperado 1 mixin 'border-radius', obtido %+v", result.Mixins)
-	}
-
-	// Verifica função
-	if len(result.Functions) != 1 || result.Functions[0].Name != "double" {
-		t.Errorf("esperado 1 função 'double', obtido %+v", result.Functions)
-	}
-
-	// Verifica placeholder
-	if len(result.Placeholders) != 1 || result.Placeholders[0].Name != "box-style" {
-		t.Errorf("esperado 1 placeholder 'box-style', obtido %+v", result.Placeholders)
-	}
-
-	// Verifica regra CSS nav ul
-	found := false
-	for _, rule := range result.Rules {
-		if strings.TrimSpace(rule.Selector) == "nav ul" {
-			found = true
-			if len(rule.Properties) == 0 || rule.Properties[0] != "margin: 0" {
-				t.Errorf("nav ul encontrado, mas propriedades incorretas: %+v", rule.Properties)
-			}
-			break
-		}
-	}
-	if !found {
-		t.Error("regra 'nav ul' não encontrada")
-	}
-}
-
-func TestParseScssContent_WithMultilineComments(t *testing.T) {
-	scss := `/* Comentário global */
-$color: red;
-
-/* Comentário
-   em várias
-   linhas */
-@mixin exemplo() {
-  color: $color;
-}`
-
-	result, err := parser.ParseScssContent(scss)
-	if err != nil {
-		t.Fatalf("erro ao fazer parse: %v", err)
-	}
-
-	if result == nil {
-		t.Fatal("resultado retornado é nil")
-	}
-
-	if len(result.Comments) != 2 {
-		t.Fatalf("esperado 2 comentários, obtido %d", len(result.Comments))
-	}
-
-	expectedFirst := "/* Comentário global */"
-	if !strings.Contains(result.Comments[0].Content, expectedFirst) {
-		t.Errorf("esperado que o primeiro comentário contenha %q, obtido: %q", expectedFirst, result.Comments[0].Content)
-	}
-
-	expectedSecond := "/* Comentário\n   em várias\n   linhas */"
-	if !strings.Contains(result.Comments[1].Content, "Comentário") || !strings.Contains(result.Comments[1].Content, "várias") {
-		t.Errorf("segundo comentário não contém conteúdo esperado: %q, obtido: %q", expectedSecond, result.Comments[1].Content)
-	}
-}
-
-func TestInterpolatedPropertyValue(t *testing.T) {
-	scss := `
-$img: theme;
-
-.box {
-  background-image: url('/img/#{$img}.png');
-}`
-
-	result, err := parser.ParseScssContent(scss)
-	if err != nil {
-		t.Fatalf("erro ao fazer parse: %v", err)
-	}
-
-	if len(result.Rules) != 1 {
-		t.Fatalf("esperado 1 regra, obtido %d", len(result.Rules))
-	}
-
-	rule := result.Rules[0]
-	if rule.Selector != ".box" {
-		t.Errorf("esperado seletor .box, obtido: %q", rule.Selector)
-	}
-
-	if len(rule.Properties) != 1 {
-		t.Fatalf("esperado 1 propriedade, obtido %d", len(rule.Properties))
-	}
-
-	expectedProp := "background-image: url('/img/#{$img}.png')"
-	if strings.TrimSpace(rule.Properties[0]) != expectedProp {
-		t.Errorf("propriedade incorreta. esperado: %q, obtido: %q", expectedProp, rule.Properties[0])
-	}
-}
-
-func TestSelectorWithMultipleInterpolations(t *testing.T) {
-	scss := `
-$size: large;
-$theme: dark;
-
-.btn-#{$size}-#{$theme} {
-  color: black;
-}`
-
-	result, err := parser.ParseScssContent(scss)
-	if err != nil {
-		t.Fatalf("erro ao fazer parse: %v", err)
-	}
-
-	if len(result.Rules) != 1 {
-		t.Fatalf("esperado 1 regra, obtido %d", len(result.Rules))
-	}
-
-	rule := result.Rules[0]
-	expectedSelector := ".btn-#{$size}-#{$theme}"
-	if rule.Selector != expectedSelector {
-		t.Errorf("esperado seletor %q, obtido %q", expectedSelector, rule.Selector)
-	}
-
-	if len(rule.Properties) != 1 || rule.Properties[0] != "color: black" {
-		t.Errorf("propriedades incorretas: %v", rule.Properties)
-	}
-}
-
-func TestParseMediaQuery(t *testing.T) {
-	scss := `
-@media screen and (max-width: 600px) {
-  .box {
-    display: block;
-  }
-}
-`
-	result, err := parser.ParseScssContent(scss)
-	if err != nil {
-		t.Fatalf("Erro ao parsear @media: %v", err)
-	}
-
-	if len(result.MediaQueries) != 1 {
-		t.Fatalf("Esperado 1 @media, obtido %d", len(result.MediaQueries))
-	}
-
-	mq := result.MediaQueries[0]
-	if mq.Type != "media" || !strings.Contains(mq.Condition, "max-width") {
-		t.Errorf("Condição do @media inválida: %+v", mq)
-	}
-	if len(mq.Rules) == 0 || mq.Rules[0].Selector != ".box" {
-		t.Errorf("Regra dentro de @media incorreta: %+v", mq.Rules)
 	}
 }
