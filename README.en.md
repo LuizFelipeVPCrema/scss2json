@@ -2,7 +2,11 @@
   <a href="README.md">🇧🇷 Português</a> | 🇺🇸 English
 </p>
 
-![SCSS2JSONLOGO](https://github.com/user-attachments/assets/1a88f243-ef31-4b53-bf72-de45662537a2)
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/c52a0e2d-4a67-40fb-9f0c-9ab05a7190db" alt="SCSS2JSON Logo">
+</p>
+
+
 # SCSS2JSON
 
 **A smart and robust Go parser for SCSS → JSON.**
@@ -10,6 +14,7 @@
 This library parses SCSS files or raw content and outputs a full **AST (Abstract Syntax Tree)** in JSON format. It supports variables, mixins, functions, placeholders, loops, media blocks, comments, and deeply nested CSS rules.
 
 ---
+
 
 ## Features
 
