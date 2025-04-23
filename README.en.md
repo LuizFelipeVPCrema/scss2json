@@ -2,6 +2,7 @@
   <a href="README.md">🇧🇷 Português</a> | 🇺🇸 English
 </p>
 
+![SCSS2JSONLOGO](https://github.com/user-attachments/assets/1a88f243-ef31-4b53-bf72-de45662537a2)
 # SCSS2JSON
 
 **A smart and robust Go parser for SCSS → JSON.**
