@@ -3,9 +3,8 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/c52a0e2d-4a67-40fb-9f0c-9ab05a7190db" alt="SCSS2JSON Logo">
+  <img src="https://github.com/user-attachments/assets/620d68df-62d8-4e3a-8421-88a771e6d50b" alt="SCSS2JSON Logo" width="400">
 </p>
-
 
 # SCSS2JSON
 
