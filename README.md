@@ -2,6 +2,11 @@
   🇧🇷 Português | <a href="README.en.md">🇺🇸 English</a>
 </p>
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/620d68df-62d8-4e3a-8421-88a771e6d50b" alt="SCSS2JSON Logo" width="400">
+</p>
+
+
 # SCSS2JSON
 
 **SCSS2JSON** é uma biblioteca e ferramenta de linha de comando escrita em Go que realiza o _parse_ de arquivos `.scss` e transforma seu conteúdo em uma estrutura JSON baseada em **AST (Abstract Syntax Tree)**. Suporta SCSS moderno com variáveis, mixins, funções, placeholders, loops, regras aninhadas e comentários multilinha.
