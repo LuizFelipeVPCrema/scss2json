@@ -1,6 +1,6 @@
 package scss2json
 
-import "github.com/LuizFelipeVPCrema/scss2json/internal/parser"
+import "github.com/LuizFelipeVPCrema/scss2json/v2/internal/parser"
 
 // ToScssNode tranforma uma AST em nós exportáveis
 func ToScssNode(ast *parser.AST) []*parser.ScssNode {

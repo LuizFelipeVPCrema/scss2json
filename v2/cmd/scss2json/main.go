@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/LuizFelipeVPCrema/scss2json/pkg/scss2json"
+	"github.com/LuizFelipeVPCrema/scss2json/v2/pkg/scss2json"
 )
 
 func main() {

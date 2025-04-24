@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LuizFelipeVPCrema/scss2json/internal/parser"
+	"github.com/LuizFelipeVPCrema/scss2json/v2/internal/parser"
 )
 
 func assertNodeCount(t *testing.T, ast *parser.AST, expected int) {

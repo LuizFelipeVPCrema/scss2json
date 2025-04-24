@@ -3,7 +3,7 @@ package scss2json
 import (
 	"errors"
 
-	"github.com/LuizFelipeVPCrema/scss2json/internal/parser"
+	"github.com/LuizFelipeVPCrema/scss2json/v2/internal/parser"
 )
 
 // ParseFile carrega e analisa um arquivo SCSS para AST

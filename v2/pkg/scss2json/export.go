@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/LuizFelipeVPCrema/scss2json/internal/parser"
+	"github.com/LuizFelipeVPCrema/scss2json/v2/internal/parser"
 )
 
 // ExportToJson salva o resultado do parser em um arquivo JSON no caminho especificado
