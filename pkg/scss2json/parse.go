@@ -16,17 +16,6 @@ func ParseContent(content string) (*parser.AST, error) {
 	return parser.ParseScssContent(content)
 }
 
-// InputSource representa a origem dos dados SCSS
-type InputSource struct {
-	FilePath string
-	Content  string
-}
-
-// ParseOptions define as opções de entrada para análise SCSS
-type ParseOptions struct {
-	Input InputSource
-}
-
 // ParseScss realiza o parse do SCSS (de arquivo ou string) e retorna a AST
 func ParseScss(opts ParseOptions) (*parser.AST, error) {
 	switch {

@@ -55,62 +55,6 @@ func extractMediaCondition(line string) string {
 	return strings.TrimSpace(line)
 }
 
-// func parseBlockToNodes(lines []string) []ASTNode {
-// 	var result []ASTNode
-// 	var stack []*ASTRule
-// 	var current *ASTRule
-
-// 	for _, line := range lines {
-// 		trimmed := strings.TrimSpace(line)
-
-// 		if strings.HasSuffix(trimmed, "{") {
-// 			selector := strings.TrimSuffix(trimmed, "{")
-// 			selector = strings.TrimSpace(selector)
-
-// 			// Resolver & para o seletor pai
-// 			if current != nil {
-// 				if strings.Contains(selector, "&") {
-// 					selector = strings.ReplaceAll(selector, "&", current.Selector)
-// 				} else {
-// 					selector = current.Selector + " " + selector
-// 				}
-// 			}
-
-// 			newRule := &ASTRule{
-// 				Selector:   selector,
-// 				Properties: []string{},
-// 				Children:   []ASTNode{},
-// 				raw:        trimmed,
-// 			}
-
-// 			if current != nil {
-// 				current.Children = append(current.Children, newRule)
-// 				stack = append(stack, current)
-// 			} else {
-// 				result = append(result, newRule)
-// 			}
-// 			current = newRule
-// 			continue
-// 		}
-
-// 		if trimmed == "}" {
-// 			if len(stack) > 0 {
-// 				current = stack[len(stack)-1]
-// 				stack = stack[:len(stack)-1]
-// 			} else {
-// 				current = nil
-// 			}
-// 			continue
-// 		}
-
-// 		if current != nil && strings.Contains(trimmed, ":") && strings.HasSuffix(trimmed, ";") {
-// 			current.Properties = append(current.Properties, strings.TrimSuffix(trimmed, ";"))
-// 		}
-// 	}
-
-//		return result
-//	}
-
 func parseBlockToNodes(lines []string) []ASTNode {
 	var result []ASTNode
 	var stack []*ASTRule

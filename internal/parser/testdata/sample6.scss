@@ -1,0 +1,23 @@
+button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    background-color: red;
+    font-weight: bold;
+    cursor: pointer;
+	color: black;
+
+    &.primary {
+        background-color: #1976d2;
+        color: white;
+    }
+
+    &.secondary {
+        background-color: #e0e0e0;
+        color: black;
+    }
+
+    i {
+        margin-right: 8px;
+    }
+}
